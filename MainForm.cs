@@ -17,6 +17,8 @@ namespace PiCheck
         private DateTime nextCheckTime;
         private bool isOnline = false;
         private ToolStripMenuItem startupMenuItem;
+        private NotificationManager notificationManager;
+        private bool isFirstCheck = true;
 
         public MainForm()
         {
@@ -38,13 +40,22 @@ namespace PiCheck
         private void InitializeApplication()
         {
             sshChecker = new SshChecker();
-            sshTarget = Properties.Settings.Default.SshTarget;
+            notificationManager = new NotificationManager();
+            notificationManager.ConfigureRequested += OnNotificationConfigureRequested;
+            notificationManager.ForceCheckRequested += OnNotificationForceCheckRequested;
+            
+            // Load SSH target from isolated storage
+            LoadUserSettings();
             
             if (string.IsNullOrEmpty(sshTarget))
             {
                 sshTarget = "junior@100.117.1.121";
-                Properties.Settings.Default.SshTarget = sshTarget;
-                Properties.Settings.Default.Save();
+                SaveUserSettings();
+                System.Diagnostics.Debug.WriteLine($"Initialized default SSH target: {sshTarget}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"Loaded SSH target from settings: {sshTarget}");
             }
 
             SetupTrayIcon();
@@ -52,6 +63,9 @@ namespace PiCheck
             
             // Initial check
             _ = CheckConnectivityAsync();
+            
+            // Clear any lingering notifications on startup
+            notificationManager.ClearAllNotifications();
         }
 
         private void SetupTrayIcon()
@@ -107,26 +121,23 @@ namespace PiCheck
                 
                 nextCheckTime = DateTime.Now.AddHours(1);
                 
-                // Show balloon tip on status change
-                if (wasOnline != isOnline)
+                // Handle notifications on status change or first check
+                if (wasOnline != isOnline || (isFirstCheck && !isOnline))
                 {
-                    string message = isOnline ? 
-                        $"{sshTarget} is now online" : 
-                        $"{sshTarget} is now offline";
-                    
                     if (InvokeRequired)
                     {
                         Invoke(new Action(() => {
-                            notifyIcon.ShowBalloonTip(3000, "PiCheck", message, 
-                                isOnline ? ToolTipIcon.Info : ToolTipIcon.Warning);
+                            HandleNotificationForStatusChange(wasOnline, isOnline, isFirstCheck);
                         }));
                     }
                     else
                     {
-                        notifyIcon.ShowBalloonTip(3000, "PiCheck", message, 
-                            isOnline ? ToolTipIcon.Info : ToolTipIcon.Warning);
+                        HandleNotificationForStatusChange(wasOnline, isOnline, isFirstCheck);
                     }
                 }
+                
+                // Mark that we've completed the first check
+                isFirstCheck = false;
             }
             catch (Exception ex)
             {
@@ -136,6 +147,8 @@ namespace PiCheck
                 {
                     Invoke(new Action(() => {
                         UpdateTrayIcon();
+                        // Show persistent notification for connectivity errors (treated as offline)
+                        notificationManager.ShowOfflineNotification(sshTarget);
                         notifyIcon.ShowBalloonTip(3000, "PiCheck", 
                             $"Error checking connectivity: {ex.Message}", ToolTipIcon.Error);
                     }));
@@ -143,9 +156,14 @@ namespace PiCheck
                 else
                 {
                     UpdateTrayIcon();
+                    // Show persistent notification for connectivity errors (treated as offline)
+                    notificationManager.ShowOfflineNotification(sshTarget);
                     notifyIcon.ShowBalloonTip(3000, "PiCheck", 
                         $"Error checking connectivity: {ex.Message}", ToolTipIcon.Error);
                 }
+                
+                // Mark that we've completed the first check even on error
+                isFirstCheck = false;
             }
         }
 
@@ -225,21 +243,81 @@ namespace PiCheck
             }
         }
 
+        private void HandleNotificationForStatusChange(bool wasOnline, bool isNowOnline, bool isFirstCheck = false)
+        {
+            if (isFirstCheck)
+            {
+                System.Diagnostics.Debug.WriteLine($"First connectivity check: {sshTarget} is {(isNowOnline ? "online" : "offline")}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"Status change: {wasOnline} -> {isNowOnline} for {sshTarget}");
+            }
+            
+            if (isNowOnline)
+            {
+                // Host is/came online - clear persistent notification and show positive feedback
+                System.Diagnostics.Debug.WriteLine($"Clearing offline notifications for {sshTarget}");
+                notificationManager.ClearOfflineNotification(sshTarget);
+                
+                // Only show balloon tip for status changes (not first check if online)
+                if (!isFirstCheck)
+                {
+                    notifyIcon.ShowBalloonTip(3000, "PiCheck", 
+                        $"{sshTarget} is now online", ToolTipIcon.Info);
+                }
+            }
+            else
+            {
+                // Host is/went offline - show persistent notification
+                System.Diagnostics.Debug.WriteLine($"Showing offline notification for {sshTarget}");
+                notificationManager.ShowOfflineNotification(sshTarget);
+                
+                // Show balloon tip for both status changes and first check if offline
+                string message = isFirstCheck ? 
+                    $"{sshTarget} is offline" : 
+                    $"{sshTarget} is now offline";
+                notifyIcon.ShowBalloonTip(3000, "PiCheck", message, ToolTipIcon.Warning);
+            }
+        }
+
+        private async void OnNotificationConfigureRequested(object sender, EventArgs e)
+        {
+            // Handle configure request from notification
+            Configure_Click(sender, e);
+        }
+
+        private async void OnNotificationForceCheckRequested(object sender, EventArgs e)
+        {
+            // Handle force check request from notification
+            ForceCheck_Click(sender, e);
+        }
+
         private async void ForceCheck_Click(object sender, EventArgs e)
         {
             notifyIcon.Text = "PiCheck - Checking...";
+            isFirstCheck = false; // Ensure force checks are not treated as first checks
             await CheckConnectivityAsync();
         }
 
         private async void Configure_Click(object sender, EventArgs e)
         {
+            string oldTarget = sshTarget;
             using (var configDialog = new ConfigDialog(sshTarget))
             {
                 if (configDialog.ShowDialog() == DialogResult.OK)
                 {
-                    sshTarget = configDialog.SshTarget;
-                    Properties.Settings.Default.SshTarget = sshTarget;
-                    Properties.Settings.Default.Save();
+                    string newTarget = configDialog.SshTarget;
+                    
+                    // If target changed, clear any existing notifications for old target
+                    if (oldTarget != newTarget)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"SSH target changed from {oldTarget} to {newTarget}");
+                        notificationManager.ClearOfflineNotification(oldTarget);
+                    }
+                    
+                    sshTarget = newTarget;
+                    SaveUserSettings();
                     
                     // Show immediate feedback
                     notifyIcon.Text = "PiCheck - Checking new configuration...";
@@ -289,10 +367,74 @@ namespace PiCheck
             base.SetVisibleCore(false);
         }
 
+        private void LoadUserSettings()
+        {
+            try
+            {
+                // Upgrade settings from previous version if needed
+                if (Properties.Settings.Default.UpgradeRequired)
+                {
+                    System.Diagnostics.Debug.WriteLine("Upgrading user settings from previous version");
+                    Properties.Settings.Default.Upgrade();
+                    Properties.Settings.Default.UpgradeRequired = false;
+                    Properties.Settings.Default.Save();
+                }
+
+                sshTarget = Properties.Settings.Default.SshTarget;
+                System.Diagnostics.Debug.WriteLine($"Settings loaded from: {GetSettingsFilePath()}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error loading user settings: {ex.Message}");
+                sshTarget = string.Empty; // Will trigger default initialization
+            }
+        }
+
+        private void SaveUserSettings()
+        {
+            try
+            {
+                Properties.Settings.Default.SshTarget = sshTarget;
+                Properties.Settings.Default.Save();
+                System.Diagnostics.Debug.WriteLine($"Settings saved. SSH Target: {sshTarget}");
+                System.Diagnostics.Debug.WriteLine($"Settings stored at: {GetSettingsFilePath()}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error saving user settings: {ex.Message}");
+            }
+        }
+
+        private string GetSettingsFilePath()
+        {
+            try
+            {
+                // Get the settings file path for debugging purposes
+                var config = System.Configuration.ConfigurationManager.OpenExeConfiguration(
+                    System.Configuration.ConfigurationUserLevel.PerUserRoamingAndLocal);
+                return config.FilePath;
+            }
+            catch
+            {
+                return "Unable to determine settings path";
+            }
+        }
+
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
+                // Save settings one final time on disposal
+                SaveUserSettings();
+                
+                // Clean up notification event handlers
+                if (notificationManager != null)
+                {
+                    notificationManager.ConfigureRequested -= OnNotificationConfigureRequested;
+                    notificationManager.ForceCheckRequested -= OnNotificationForceCheckRequested;
+                    notificationManager.Dispose();
+                }
+                
                 notifyIcon?.Dispose();
                 contextMenu?.Dispose();
                 checkTimer?.Dispose();
