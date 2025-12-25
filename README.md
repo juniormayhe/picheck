@@ -4,9 +4,10 @@ A lightweight Windows system tray application that monitors SSH connectivity to 
 
 ## Features
 
-- **System Tray Integration**: Runs quietly in the background with a colored indicator
-- **Visual Status**: Green dot for online, red dot for offline, gray dot during startup
+- **System Tray Integration**: Runs quietly in the background with custom icon indicators
+- **Professional Icons**: Custom .ico files for clear visual status communication
 - **SSH Connectivity Monitoring**: Uses standard SSH commands to test connectivity
+- **Windows Startup Support**: Option to start automatically with Windows
 - **Automatic Checks**: Checks connectivity every hour automatically
 - **Manual Testing**: Force immediate connectivity check via right-click menu
 - **Configurable Target**: Easy configuration of SSH target host
@@ -28,31 +29,34 @@ A lightweight Windows system tray application that monitors SSH connectivity to 
 ## Usage
 
 1. Launch PiCheck - it will minimize to the system tray
-2. The tray icon color indicates connectivity status:
-   - **Gray**: Starting up or checking
-   - **Green**: Target host is online and accessible via SSH
-   - **Red**: Target host is offline or unreachable
-   - **Orange**: Checking new configuration
+2. The tray icon indicates connectivity status:
+   - **Connecting Icon** (`picheck-connecting.ico`): Starting up, checking, or reconfiguring
+   - **Online Icon** (`picheck.ico`): Target host is online and accessible via SSH
+   - **Offline Icon** (`picheck-offline.ico`): Target host is offline or unreachable
 
 3. Right-click the tray icon for options:
    - **Force Check Now**: Immediately test connectivity
-   - **Configure**: Change the SSH target host
+   - **Configure**: Change SSH target and startup settings
+   - **Start with Windows**: Toggle automatic startup (checkmark when enabled)
    - **Exit**: Close the application
 
 4. Double-click the tray icon to open configuration
 
 ## Configuration
 
-- Default target: `junior@100.117.1.121`
-- Target can be changed via the configuration dialog
-- Settings are automatically saved between sessions
+- **SSH Target**: Default target is `junior@100.117.1.121`
+- **Windows Startup**: Option to start PiCheck automatically with Windows
+- **Settings Access**: Configuration dialog available via right-click menu or double-click tray icon
+- **Persistent Settings**: All settings are automatically saved between sessions
 
 ## Technical Details
 
-- Uses SSH with batch mode and timeout for reliable connectivity testing
-- Checks connectivity every hour (3600000 milliseconds)
-- SSH command: `ssh -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=QUIET [target] exit`
-- Single instance enforcement using named mutex
+- **SSH Testing**: Uses SSH with batch mode and timeout for reliable connectivity testing
+- **Check Interval**: Automatically checks connectivity every hour (3600000 milliseconds)
+- **SSH Command**: `ssh -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=QUIET [target] exit`
+- **Startup Management**: Uses Windows Registry to manage startup settings
+- **Icon System**: Embedded .ico resources with filesystem fallback for reliability
+- **Single Instance**: Named mutex prevents multiple instances from running
 
 ## Notes
 
