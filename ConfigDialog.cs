@@ -10,6 +10,7 @@ namespace PiCheck
         private Button buttonOk;
         private Button buttonCancel;
         private Label labelInstruction;
+        private CheckBox checkBoxStartup;
 
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public string SshTarget { get; set; }
@@ -19,6 +20,7 @@ namespace PiCheck
             InitializeComponent();
             SshTarget = currentTarget;
             textBoxSshTarget.Text = currentTarget;
+            checkBoxStartup.Checked = StartupManager.IsStartupEnabled();
         }
 
         private void InitializeComponent()
@@ -27,6 +29,7 @@ namespace PiCheck
             this.buttonOk = new Button();
             this.buttonCancel = new Button();
             this.labelInstruction = new Label();
+            this.checkBoxStartup = new CheckBox();
             this.SuspendLayout();
 
             // labelInstruction
@@ -40,8 +43,16 @@ namespace PiCheck
             this.textBoxSshTarget.Size = new System.Drawing.Size(250, 23);
             this.textBoxSshTarget.TabIndex = 0;
 
+            // checkBoxStartup
+            this.checkBoxStartup.AutoSize = true;
+            this.checkBoxStartup.Location = new System.Drawing.Point(15, 70);
+            this.checkBoxStartup.Size = new System.Drawing.Size(120, 19);
+            this.checkBoxStartup.TabIndex = 1;
+            this.checkBoxStartup.Text = "Start with Windows";
+            this.checkBoxStartup.UseVisualStyleBackColor = true;
+
             // buttonOk
-            this.buttonOk.Location = new System.Drawing.Point(110, 70);
+            this.buttonOk.Location = new System.Drawing.Point(110, 105);
             this.buttonOk.Size = new System.Drawing.Size(75, 23);
             this.buttonOk.Text = "OK";
             this.buttonOk.UseVisualStyleBackColor = true;
@@ -49,7 +60,7 @@ namespace PiCheck
             this.buttonOk.DialogResult = DialogResult.OK;
 
             // buttonCancel
-            this.buttonCancel.Location = new System.Drawing.Point(190, 70);
+            this.buttonCancel.Location = new System.Drawing.Point(190, 105);
             this.buttonCancel.Size = new System.Drawing.Size(75, 23);
             this.buttonCancel.Text = "Cancel";
             this.buttonCancel.UseVisualStyleBackColor = true;
@@ -58,9 +69,10 @@ namespace PiCheck
             // ConfigDialog
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(284, 111);
+            this.ClientSize = new System.Drawing.Size(284, 145);
             this.Controls.Add(this.buttonCancel);
             this.Controls.Add(this.buttonOk);
+            this.Controls.Add(this.checkBoxStartup);
             this.Controls.Add(this.textBoxSshTarget);
             this.Controls.Add(this.labelInstruction);
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -84,6 +96,13 @@ namespace PiCheck
             }
 
             SshTarget = textBoxSshTarget.Text.Trim();
+            
+            // Handle startup setting change
+            bool currentStartupEnabled = StartupManager.IsStartupEnabled();
+            if (checkBoxStartup.Checked != currentStartupEnabled)
+            {
+                StartupManager.SetStartupEnabled(checkBoxStartup.Checked);
+            }
         }
     }
 }
