@@ -12,6 +12,7 @@ namespace PiCheck
         private NotifyIcon notifyIcon;
         private ContextMenuStrip contextMenu;
         private Timer checkTimer;
+        private Timer tooltipUpdateTimer;
         private SshChecker sshChecker;
         private string sshTarget;
         private DateTime nextCheckTime;
@@ -96,8 +97,14 @@ namespace PiCheck
             checkTimer.Interval = 3600000; // 1 hour
             checkTimer.Tick += async (s, e) => await CheckConnectivityAsync();
             checkTimer.Start();
-            
+
             nextCheckTime = DateTime.Now.AddHours(1);
+
+            // Setup separate timer for tooltip countdown updates
+            tooltipUpdateTimer = new Timer();
+            tooltipUpdateTimer.Interval = 30000; // 30 seconds
+            tooltipUpdateTimer.Tick += (s, e) => UpdateTrayIconTooltip();
+            tooltipUpdateTimer.Start();
         }
 
         private async Task CheckConnectivityAsync()
@@ -172,9 +179,16 @@ namespace PiCheck
             string iconFile = isOnline ? "picheck.ico" : "picheck-offline.ico";
             string status = isOnline ? "online" : "offline";
             string timeUntilNext = GetTimeUntilNextCheck();
-            
+
             notifyIcon.Icon = LoadEmbeddedIcon(iconFile);
             notifyIcon.Text = $"{sshTarget} is {status}\nNext check: {timeUntilNext}";
+
+            // Reset tooltip timer to synchronize countdown after full update
+            if (tooltipUpdateTimer != null && tooltipUpdateTimer.Enabled)
+            {
+                tooltipUpdateTimer.Stop();
+                tooltipUpdateTimer.Start();
+            }
         }
 
         private string GetTimeUntilNextCheck()
@@ -186,6 +200,17 @@ namespace PiCheck
                 return $"in {(int)timeSpan.TotalMinutes} minutes";
             else
                 return $"in {(int)timeSpan.TotalHours} hours {timeSpan.Minutes} minutes";
+        }
+
+        private void UpdateTrayIconTooltip()
+        {
+            // Only update the tooltip text, not the icon
+            if (notifyIcon != null && !string.IsNullOrEmpty(sshTarget))
+            {
+                string timeUntilNext = GetTimeUntilNextCheck();
+                string status = isOnline ? "online" : "offline";
+                notifyIcon.Text = $"{sshTarget} is {status}\nNext check: {timeUntilNext}";
+            }
         }
 
         private Icon LoadEmbeddedIcon(string iconFileName)
@@ -437,6 +462,7 @@ namespace PiCheck
                 
                 notifyIcon?.Dispose();
                 contextMenu?.Dispose();
+                tooltipUpdateTimer?.Dispose();
                 checkTimer?.Dispose();
             }
             base.Dispose(disposing);
