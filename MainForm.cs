@@ -3,6 +3,7 @@ using System.Drawing;
 using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace PiCheck
@@ -20,6 +21,9 @@ namespace PiCheck
         private ToolStripMenuItem startupMenuItem;
         private NotificationManager notificationManager;
         private bool isFirstCheck = true;
+
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
 
         public MainForm()
         {
@@ -88,17 +92,18 @@ namespace PiCheck
             contextMenu.Items.Add("Exit", null, Exit_Click);
 
             notifyIcon.ContextMenuStrip = contextMenu;
+            contextMenu.Opening += (s, e) => { SetForegroundWindow(this.Handle); };
             notifyIcon.DoubleClick += NotifyIcon_DoubleClick;
         }
 
         private void SetupTimer()
         {
             checkTimer = new Timer();
-            checkTimer.Interval = 300; // 5 minutes in milliseconds
+            checkTimer.Interval = 300000; // 5 minutes in milliseconds
             checkTimer.Tick += async (s, e) => await CheckConnectivityAsync();
             checkTimer.Start();
 
-            nextCheckTime = DateTime.Now.AddHours(1);
+            nextCheckTime = DateTime.Now.AddMilliseconds(checkTimer.Interval);
 
             // Setup separate timer for tooltip countdown updates
             tooltipUpdateTimer = new Timer();
@@ -109,6 +114,21 @@ namespace PiCheck
 
         private async Task CheckConnectivityAsync()
         {
+            // Show "checking" state immediately
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() =>
+                {
+                    notifyIcon.Icon = LoadEmbeddedIcon("picheck-connecting.ico");
+                    notifyIcon.Text = $"PiCheck - Checking {sshTarget}...";
+                }));
+            }
+            else
+            {
+                notifyIcon.Icon = LoadEmbeddedIcon("picheck-connecting.ico");
+                notifyIcon.Text = $"PiCheck - Checking {sshTarget}...";
+            }
+
             try
             {
                 bool wasOnline = isOnline;
@@ -127,7 +147,7 @@ namespace PiCheck
                     UpdateTrayIcon();
                 }
 
-                nextCheckTime = DateTime.Now.AddHours(1);
+                nextCheckTime = DateTime.Now.AddMilliseconds(checkTimer.Interval);
 
                 // Handle notifications on status change or first check
                 if (wasOnline != isOnline || (isFirstCheck && !isOnline))
@@ -145,12 +165,29 @@ namespace PiCheck
                     }
                 }
 
+                // Always clear notifications when online, regardless of status change
+                if (isOnline)
+                {
+                    if (InvokeRequired)
+                    {
+                        Invoke(new Action(() =>
+                        {
+                            notificationManager.ClearOfflineNotification(sshTarget);
+                        }));
+                    }
+                    else
+                    {
+                        notificationManager.ClearOfflineNotification(sshTarget);
+                    }
+                }
+
                 // Mark that we've completed the first check
                 isFirstCheck = false;
             }
             catch (Exception ex)
             {
                 isOnline = false;
+                nextCheckTime = DateTime.Now.AddMilliseconds(checkTimer.Interval);
 
                 if (InvokeRequired)
                 {
@@ -362,7 +399,7 @@ namespace PiCheck
 
         private void NotifyIcon_DoubleClick(object sender, EventArgs e)
         {
-            Configure_Click(sender, e);
+            ForceCheck_Click(sender, e);
         }
 
         private void StartupToggle_Click(object sender, EventArgs e)

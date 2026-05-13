@@ -19,8 +19,8 @@ namespace PiCheck
             try
             {
                 System.Diagnostics.Debug.WriteLine($"Attempting to show offline notification for: {sshTarget}");
-                
-                // Enhanced duplicate prevention - check multiple criteria
+
+                // Duplicate prevention - check multiple criteria
                 if (activeNotificationTargets.Contains(sshTarget))
                 {
                     System.Diagnostics.Debug.WriteLine($"Target {sshTarget} already tracked in active targets set");
@@ -52,12 +52,12 @@ namespace PiCheck
                 PositionNotification(notification);
 
                 // Wire up notification events
-                notification.ConfigureRequested += (s, e) => 
+                notification.ConfigureRequested += (s, e) =>
                 {
                     ConfigureRequested?.Invoke(this, EventArgs.Empty);
                 };
-                
-                notification.ForceCheckRequested += (s, e) => 
+
+                notification.ForceCheckRequested += (s, e) =>
                 {
                     ForceCheckRequested?.Invoke(this, EventArgs.Empty);
                 };
@@ -65,7 +65,7 @@ namespace PiCheck
                 // Show the notification
                 notification.Show();
                 activeNotifications.Add(notification);
-                
+
                 System.Diagnostics.Debug.WriteLine($"Created and showed notification for: {sshTarget}. Total active: {activeNotifications.Count}");
 
                 // Handle when notification is closed
@@ -88,14 +88,14 @@ namespace PiCheck
             try
             {
                 var notificationsToClose = new List<PersistentNotificationForm>();
-                
+
                 System.Diagnostics.Debug.WriteLine($"Looking for notifications to clear for target: {sshTarget ?? "all"}");
                 System.Diagnostics.Debug.WriteLine($"Active notifications count: {activeNotifications.Count}");
-                
+
                 foreach (var notification in activeNotifications)
                 {
                     System.Diagnostics.Debug.WriteLine($"Checking notification for target: {notification.SshTarget}, visible: {notification.Visible}");
-                    
+
                     if (sshTarget == null || notification.SshTarget == sshTarget)
                     {
                         notificationsToClose.Add(notification);
@@ -104,7 +104,7 @@ namespace PiCheck
                 }
 
                 System.Diagnostics.Debug.WriteLine($"Closing {notificationsToClose.Count} notifications");
-                
+
                 foreach (var notification in notificationsToClose)
                 {
                     if (notification.Visible)
@@ -188,7 +188,7 @@ namespace PiCheck
         private Button dismissButton;
         private Button configureButton;
         private Button forceCheckButton;
-        
+
         public string SshTarget { get; private set; }
         public event EventHandler ConfigureRequested;
         public event EventHandler ForceCheckRequested;
@@ -208,6 +208,8 @@ namespace PiCheck
             this.configureButton = new Button();
             this.forceCheckButton = new Button();
             this.SuspendLayout();
+            this.AutoScaleDimensions = new SizeF(96F, 96F);
+            this.AutoScaleMode = AutoScaleMode.Dpi;
 
             // Form properties
             this.FormBorderStyle = FormBorderStyle.FixedToolWindow;
@@ -279,6 +281,7 @@ namespace PiCheck
             this.Controls.Add(this.dismissButton);
 
             this.ResumeLayout(false);
+            this.PerformLayout();
         }
 
         private void SetupNotification(string title, string message)
