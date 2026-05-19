@@ -216,7 +216,7 @@ namespace PiCheck
             this.TopMost = true;
             this.ShowInTaskbar = false;
             this.StartPosition = FormStartPosition.Manual;
-            this.Size = new Size(420, 200);
+            this.ClientSize = new Size(420, 170);
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.BackColor = Color.FromArgb(75, 0, 130); // Dark purple/indigo
